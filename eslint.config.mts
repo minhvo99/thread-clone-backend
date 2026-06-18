@@ -16,7 +16,10 @@ export default defineConfig([
         files: ['**/*.{js,mjs,cjs,ts,mts,cts}'],
 
         languageOptions: {
-            globals: globals.browser,
+            globals: {
+                ...globals.node,
+                ...globals.es2024,
+            },
         },
 
         plugins: {
@@ -24,10 +27,10 @@ export default defineConfig([
         },
 
         rules: {
-            // duplicate import
+            // Duplicate imports
             'no-duplicate-imports': 'warn',
 
-            // unused import
+            // Unused imports
             'unused-imports/no-unused-imports': 'warn',
         },
     },
@@ -36,11 +39,11 @@ export default defineConfig([
         files: ['**/*.{ts,mts,cts}'],
 
         rules: {
-            // disable default rule
+            // Disable default unused-vars rules
             'no-unused-vars': 'off',
             '@typescript-eslint/no-unused-vars': 'off',
 
-            // unused variable
+            // Warn unused variables
             'unused-imports/no-unused-vars': [
                 'warn',
                 {
@@ -53,13 +56,11 @@ export default defineConfig([
                 },
             ],
 
-            // any
+            // TypeScript quality rules
             '@typescript-eslint/no-explicit-any': 'warn',
-
-            // useful TS warnings
             '@typescript-eslint/no-empty-object-type': 'warn',
             '@typescript-eslint/no-require-imports': 'warn',
-            '@typescript-eslint/no-inferrable-types': 'off',
+            '@typescript-eslint/ban-ts-comment': 'warn',
         },
     },
 
@@ -72,9 +73,10 @@ export default defineConfig([
     },
 
     /**
-     * MUST BE LAST
-     * Disable all ESLint formatting rules
-     * that conflict with Prettier
+     * IMPORTANT:
+     * Must be last.
+     * Disables all ESLint formatting rules
+     * that conflict with Prettier.
      */
     eslintConfigPrettier,
 ]);
