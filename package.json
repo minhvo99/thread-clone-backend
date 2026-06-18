@@ -15,7 +15,8 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "prettier": "prettier --check .",
-    "prettier:fix": "prettier --write ."
+    "prettier:fix": "prettier --write .",
+    "test": "vitest"
   },
   "engines": {
     "node": "22"
@@ -25,8 +26,12 @@
   "license": "ISC",
   "devDependencies": {
     "@eslint/json": "^2.0.0",
+    "@types/compression": "^1.8.1",
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.9.3",
+    "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.20.0",
     "eslint": "^10.5.0",
     "eslint-config-prettier": "^10.1.8",
@@ -52,6 +57,7 @@
     "express-rate-limit": "^8.5.2",
     "helmet": "^8.2.0",
     "jsonwebtoken": "^9.0.3",
+    "nodemailer": "^9.0.1",
     "pg": "^8.21.0",
     "vitest": "^4.1.9",
     "zod": "^4.4.3"

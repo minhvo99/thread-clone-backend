@@ -1,5 +1,5 @@
 import { type NextFunction, type Request, type Response } from 'express'
-import { AppError } from '../utils/errors.js'
+import { AppError, ValidationError } from '../utils/errors.js'
 
 export const errorHandler = (
   err: Error,
@@ -11,6 +11,9 @@ export const errorHandler = (
     res.status(err.statusCode).json({
       status: 'error',
       message: err.message,
+      ...(err instanceof ValidationError && err.errors
+        ? { errors: err.errors }
+        : {}),
     })
     return
   }
