@@ -1,7 +1,4 @@
-import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool, type PoolConfig } from 'pg';
-import { appConfig } from './app.config';
-import { PrismaClient } from '../generated/prisma/client';
 
 export type DatabaseConfig = {
     databaseUrl: string;
@@ -49,29 +46,3 @@ pool.on('connect', () => {
 pool.on('error', (err: Error) => {
     console.error('Unexpected database error', err);
 });
-
-const adapter = new PrismaPg(pool);
-
-declare global {
-    var prisma: PrismaClient | undefined;
-}
-
-export const prisma =
-    globalThis.prisma
-    ?? new PrismaClient({
-        adapter,
-        log:
-            appConfig.nodeEnv === 'development' ?
-                ['query', 'warn', 'error']
-            :   ['error'],
-    });
-
-if (appConfig.nodeEnv !== 'production') {
-    globalThis.prisma = prisma;
-}
-
-export async function closeDatabase(): Promise<void> {
-    await prisma.$disconnect();
-    await pool.end();
-    console.log('Database connection closed');
-}
