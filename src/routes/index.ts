@@ -1,6 +1,6 @@
 import { Router } from 'express'
-import authRouter from './auth.routes.js'
-import { prisma } from '../config/database.js'
+import authRouter from './auth.routes'
+import { prisma } from '../config/database'
 
 const appRouter = Router()
 

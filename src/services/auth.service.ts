@@ -7,16 +7,31 @@ import type {
   RegisterInput,
   ResetPasswordInput,
   SessionMetadata,
-} from '../types/auth.js'
-import type { User } from '../generated/prisma/client.js'
-import { prisma } from '../config/database.js'
-import { authConfig } from '../config/auth.js'
-import { AuthRepository } from '../repositories/auth.repository.js'
-import { hashOpaqueToken, hashPassword, verifyPassword, generateOpaqueToken } from '../utils/password.js'
-import { buildAuthResponse, getPasswordResetExpiryDate, getRefreshTokenExpiryDate, toPublicUser } from '../utils/auth.js'
-import { ConflictError, NotFoundError, UnauthorizedError, ValidationError } from '../utils/errors.js'
-import { verifyRefreshToken } from '../utils/jwt.js'
-import { EmailService } from './email.service.js'
+} from '../types/auth'
+import type { User } from '../generated/prisma/client'
+import { authConfig } from '../config/auth'
+import { prisma } from '../config/database'
+import { AuthRepository } from '../repositories/auth.repository'
+import {
+  buildAuthResponse,
+  getPasswordResetExpiryDate,
+  getRefreshTokenExpiryDate,
+  toPublicUser,
+} from '../utils/auth'
+import {
+  ConflictError,
+  NotFoundError,
+  UnauthorizedError,
+  ValidationError,
+} from '../utils/errors'
+import { verifyRefreshToken } from '../utils/jwt'
+import {
+  generateOpaqueToken,
+  hashOpaqueToken,
+  hashPassword,
+  verifyPassword,
+} from '../utils/password'
+import { EmailService } from './email.service'
 
 export class AuthService {
   constructor(
@@ -24,7 +39,10 @@ export class AuthService {
     private readonly emailService: EmailService = new EmailService(),
   ) {}
 
-  async register(input: RegisterInput, metadata: SessionMetadata): Promise<AuthResponse> {
+  async register(
+    input: RegisterInput,
+    metadata: SessionMetadata,
+  ): Promise<AuthResponse> {
     const existingEmail = await this.authRepository.findUserByEmail(input.email)
 
     if (existingEmail) {
@@ -39,8 +57,9 @@ export class AuthService {
 
     const passwordHash = await hashPassword(input.password)
 
-    const result = await prisma.$transaction(async (tx) => {
-      const repository = new AuthRepository(tx)
+    return prisma.$transaction(async (tx) => {
+      const repository = this.authRepository.withClient(tx)
+      const service = new AuthService(repository, this.emailService)
       const user = await repository.createUser({
         email: input.email,
         username: input.username,
@@ -49,10 +68,8 @@ export class AuthService {
         role: 'USER',
       })
 
-      return this.createSessionForUser(repository, user, metadata)
+      return service.createSessionForUser(user, metadata)
     })
-
-    return result
   }
 
   async login(input: LoginInput, metadata: SessionMetadata): Promise<AuthResponse> {
@@ -68,7 +85,7 @@ export class AuthService {
       throw new UnauthorizedError('Invalid credentials')
     }
 
-    return this.createSessionForUser(this.authRepository, user, metadata)
+    return this.createSessionForUser(user, metadata)
   }
 
   async refreshToken(
@@ -91,9 +108,7 @@ export class AuthService {
       throw new UnauthorizedError('Refresh session has expired')
     }
 
-    const incomingHash = hashOpaqueToken(input.refreshToken)
-
-    if (session.refreshTokenHash !== incomingHash) {
+    if (session.refreshTokenHash !== hashOpaqueToken(input.refreshToken)) {
       await this.authRepository.revokeSession(session.id)
       throw new UnauthorizedError('Refresh token is no longer valid')
     }
@@ -106,13 +121,13 @@ export class AuthService {
 
     const response = buildAuthResponse(user, session.id)
 
-    await this.authRepository.updateSessionToken(
-      session.id,
-      hashOpaqueToken(response.tokens.refreshToken),
-      getRefreshTokenExpiryDate(),
-      metadata.userAgent,
-      metadata.ipAddress,
-    )
+    await this.authRepository.updateSession(session.id, {
+      refreshTokenHash: hashOpaqueToken(response.tokens.refreshToken),
+      expiresAt: getRefreshTokenExpiryDate(),
+      lastUsedAt: new Date(),
+      userAgent: metadata.userAgent,
+      ipAddress: metadata.ipAddress,
+    })
 
     return response
   }
@@ -143,30 +158,24 @@ export class AuthService {
       throw new NotFoundError('User not found')
     }
 
-    const isValidPassword = await verifyPassword(
-      input.currentPassword,
-      user.passwordHash,
-    )
-
-    if (!isValidPassword) {
+    if (!(await verifyPassword(input.currentPassword, user.passwordHash))) {
       throw new UnauthorizedError('Current password is invalid')
     }
 
-    const isSamePassword = await verifyPassword(input.newPassword, user.passwordHash)
-
-    if (isSamePassword) {
+    if (await verifyPassword(input.newPassword, user.passwordHash)) {
       throw new ValidationError('New password must be different from the current password')
     }
 
     const passwordHash = await hashPassword(input.newPassword)
 
     return prisma.$transaction(async (tx) => {
-      const repository = new AuthRepository(tx)
+      const repository = this.authRepository.withClient(tx)
+      const service = new AuthService(repository, this.emailService)
       const updatedUser = await repository.updateUserPassword(userId, passwordHash)
-      await repository.invalidateUserPasswordResetTokens(userId)
+      await repository.consumeUserPasswordResetTokens(userId)
       await repository.revokeUserSessions(userId)
 
-      return this.createSessionForUser(repository, updatedUser, metadata)
+      return service.createSessionForUser(updatedUser, metadata)
     })
   }
 
@@ -178,16 +187,14 @@ export class AuthService {
     }
 
     const token = generateOpaqueToken()
-    const tokenHash = hashOpaqueToken(token)
-    const expiresAt = getPasswordResetExpiryDate()
 
     await prisma.$transaction(async (tx) => {
-      const repository = new AuthRepository(tx)
-      await repository.invalidateUserPasswordResetTokens(user.id)
+      const repository = this.authRepository.withClient(tx)
+      await repository.consumeUserPasswordResetTokens(user.id)
       await repository.createPasswordResetToken({
         userId: user.id,
-        tokenHash,
-        expiresAt,
+        tokenHash: hashOpaqueToken(token),
+        expiresAt: getPasswordResetExpiryDate(),
       })
     })
 
@@ -197,8 +204,9 @@ export class AuthService {
   }
 
   async resetPassword(input: ResetPasswordInput): Promise<void> {
-    const tokenHash = hashOpaqueToken(input.token)
-    const resetToken = await this.authRepository.findPasswordResetTokenByHash(tokenHash)
+    const resetToken = await this.authRepository.findPasswordResetToken(
+      hashOpaqueToken(input.token),
+    )
 
     if (
       !resetToken ||
@@ -212,10 +220,10 @@ export class AuthService {
     const passwordHash = await hashPassword(input.newPassword)
 
     await prisma.$transaction(async (tx) => {
-      const repository = new AuthRepository(tx)
+      const repository = this.authRepository.withClient(tx)
       await repository.updateUserPassword(resetToken.userId, passwordHash)
-      await repository.markPasswordResetTokenConsumed(resetToken.id)
-      await repository.invalidateUserPasswordResetTokens(resetToken.userId)
+      await repository.consumePasswordResetToken(resetToken.id)
+      await repository.consumeUserPasswordResetTokens(resetToken.userId)
       await repository.revokeUserSessions(resetToken.userId)
     })
   }
@@ -254,11 +262,10 @@ export class AuthService {
   }
 
   private async createSessionForUser(
-    repository: AuthRepository,
     user: User,
     metadata: SessionMetadata,
   ): Promise<AuthResponse> {
-    const session = await repository.createSession({
+    const session = await this.authRepository.createSession({
       userId: user.id,
       refreshTokenHash: 'pending',
       userAgent: metadata.userAgent,
@@ -268,13 +275,13 @@ export class AuthService {
 
     const response = buildAuthResponse(user, session.id)
 
-    await repository.updateSessionToken(
-      session.id,
-      hashOpaqueToken(response.tokens.refreshToken),
-      getRefreshTokenExpiryDate(),
-      metadata.userAgent,
-      metadata.ipAddress,
-    )
+    await this.authRepository.updateSession(session.id, {
+      refreshTokenHash: hashOpaqueToken(response.tokens.refreshToken),
+      expiresAt: getRefreshTokenExpiryDate(),
+      lastUsedAt: new Date(),
+      userAgent: metadata.userAgent,
+      ipAddress: metadata.ipAddress,
+    })
 
     return response
   }

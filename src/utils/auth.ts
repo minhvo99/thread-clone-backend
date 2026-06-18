@@ -1,11 +1,7 @@
-import type { User } from '../generated/prisma/client.js'
-import {
-  authConfig,
-  accessTokenExpiresIn,
-  refreshTokenExpiresIn,
-} from '../config/auth.js'
-import type { AuthResponse, AuthTokens, PublicUser } from '../types/auth.js'
-import { signAccessToken, signRefreshToken } from './jwt.js'
+import type { User } from '../generated/prisma/client'
+import { authConfig } from '../config/auth'
+import type { AuthResponse, AuthTokens, PublicUser } from '../types/auth'
+import { signAccessToken, signRefreshToken } from './jwt'
 
 export function toPublicUser(user: User): PublicUser {
   return {
@@ -35,8 +31,8 @@ export function buildAuthTokens(
   return {
     accessToken: signAccessToken(payload),
     refreshToken: signRefreshToken(payload),
-    accessTokenExpiresInMinutes: authConfig.accessTokenTtlMinutes,
-    refreshTokenExpiresInDays: authConfig.refreshTokenTtlDays,
+    accessTokenExpiresInMinutes: authConfig.accessTtlMinutes,
+    refreshTokenExpiresInDays: authConfig.refreshTtlDays,
   }
 }
 
@@ -48,13 +44,13 @@ export function buildAuthResponse(user: User, sessionId: string): AuthResponse {
 }
 
 export function getAccessTokenExpiryDate(): Date {
-  return new Date(Date.now() + authConfig.accessTokenTtlMinutes * 60 * 1000)
+  return new Date(Date.now() + authConfig.accessTtlMinutes * 60 * 1000)
 }
 
 export function getRefreshTokenExpiryDate(): Date {
-  return new Date(Date.now() + authConfig.refreshTokenTtlDays * 24 * 60 * 60 * 1000)
+  return new Date(Date.now() + authConfig.refreshTtlDays * 24 * 60 * 60 * 1000)
 }
 
 export function getPasswordResetExpiryDate(): Date {
-  return new Date(Date.now() + authConfig.passwordResetTtlMinutes * 60 * 1000)
+  return new Date(Date.now() + authConfig.resetTtlMinutes * 60 * 1000)
 }

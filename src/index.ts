@@ -1,6 +1,6 @@
 import 'dotenv/config'
-import app from './app.js'
-import { closeDatabase } from './config/database.js'
+import app from './app'
+import { closeDatabase } from './config/database'
 
 const PORT = Number(process.env.PORT || 8080)
 

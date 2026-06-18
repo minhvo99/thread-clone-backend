@@ -1,13 +1,13 @@
 import { Router } from 'express'
-import { AuthController } from '../controllers/auth.controller.js'
-import { authenticate, authorize } from '../middleware/auth.middleware.js'
-import { asyncHandler } from '../middleware/error-handler.js'
+import { container } from '~/container'
+import { AuthController } from '~/controllers/auth/auth.controller'
+import { authenticate, authorize } from '~/middleware/auth.middleware'
+import { asyncHandler } from '~/middleware/error-handler'
 import {
   authLimiter,
   forgotPasswordLimiter,
-} from '../middleware/rate-limit.middleware.js'
-import { validate } from '../middleware/validation.middleware.js'
-import { AuthService } from '../services/auth.service.js'
+} from '~/middleware/rate-limit.middleware'
+import { validate } from '~/middleware/validation.middleware'
 import {
   changePasswordSchema,
   forgotPasswordSchema,
@@ -15,10 +15,10 @@ import {
   refreshTokenSchema,
   registerSchema,
   resetPasswordSchema,
-} from '../validators/auth.schemas.js'
+} from '~/controllers/auth/auth.dto'
 
 const authRouter = Router()
-const authController = new AuthController(new AuthService())
+const authController = container.resolve<AuthController>('authController')
 
 authRouter.post(
   '/register',

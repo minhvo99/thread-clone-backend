@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer'
-import { authConfig } from '../config/auth.js'
+import { authConfig } from '../config/auth'
 
 export class EmailService {
   private readonly transporter =

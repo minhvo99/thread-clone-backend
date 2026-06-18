@@ -2,9 +2,9 @@ import compression from 'compression'
 import cors from 'cors'
 import express from 'express'
 import helmet from 'helmet'
-import appRouter from './routes/index.js'
-import { errorHandler } from './middleware/error-handler.js'
-import { requestLogger } from './middleware/logger.middleware.js'
+import appRouter from './routes/index'
+import { errorHandler } from './middleware/error-handler'
+import { requestLogger } from './middleware/logger.middleware'
 
 const app = express()
 
