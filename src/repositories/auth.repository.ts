@@ -1,103 +1,118 @@
-import type { Prisma, PrismaClient } from '../generated/prisma/client'
-import { prisma } from '../config/database'
-import { DbRepository } from './db.repository'
+import type { Prisma, PrismaClient } from '../generated/prisma/client';
+import { prisma } from '../config/database';
+import { DbRepository } from './db.repository';
 
-type DbClient = PrismaClient | Prisma.TransactionClient
+type DbClient = PrismaClient | Prisma.TransactionClient;
 
 export class AuthRepository extends DbRepository<DbClient['user']> {
-  constructor(private readonly db: DbClient = prisma) {
-    super(db.user)
-  }
+    constructor(private readonly db: DbClient = prisma) {
+        super(db.user);
+    }
 
-  withClient(db: DbClient): AuthRepository {
-    return new AuthRepository(db)
-  }
+    withClient(db: DbClient): AuthRepository {
+        return new AuthRepository(db);
+    }
 
-  findUserByEmail(email: string) {
-    return this.findUnique({ where: { email } })
-  }
+    transaction<T>(
+        callback: (repository: AuthRepository) => Promise<T>,
+    ): Promise<T> {
+        if (!('$transaction' in this.db)) {
+            return callback(this);
+        }
 
-  findUserByUsername(username: string) {
-    return this.findUnique({ where: { username } })
-  }
+        return this.db.$transaction((tx) => callback(this.withClient(tx)));
+    }
 
-  findUserById(id: string) {
-    return this.findUnique({ where: { id } })
-  }
+    findUserByEmail(email: string) {
+        return this.findUnique({ where: { email } });
+    }
 
-  createUser(data: Prisma.UserCreateInput) {
-    return this.create({ data })
-  }
+    findUserByUsername(username: string) {
+        return this.findUnique({ where: { username } });
+    }
 
-  updateUserPassword(userId: string, passwordHash: string) {
-    return this.db.user.update({
-      where: { id: userId },
-      data: { passwordHash },
-    })
-  }
+    findUserById(id: string) {
+        return this.findUnique({ where: { id } });
+    }
 
-  findSessionById(sessionId: string) {
-    return this.db.authSession.findUnique({ where: { id: sessionId } })
-  }
+    createUser(data: Prisma.UserCreateInput) {
+        return this.create({ data });
+    }
 
-  createSession(data: Prisma.AuthSessionCreateArgs['data']) {
-    return this.db.authSession.create({ data })
-  }
+    updateUserPassword(userId: string, passwordHash: string) {
+        return this.db.user.update({
+            where: { id: userId },
+            data: { passwordHash },
+        });
+    }
 
-  updateSession(sessionId: string, data: Prisma.AuthSessionUpdateArgs['data']) {
-    return this.db.authSession.update({
-      where: { id: sessionId },
-      data,
-    })
-  }
+    findSessionById(sessionId: string) {
+        return this.db.authSession.findUnique({ where: { id: sessionId } });
+    }
 
-  revokeSession(sessionId: string) {
-    return this.db.authSession.updateMany({
-      where: { id: sessionId, revokedAt: null },
-      data: { revokedAt: new Date() },
-    })
-  }
+    createSession(data: Prisma.AuthSessionCreateArgs['data']) {
+        return this.db.authSession.create({ data });
+    }
 
-  revokeUserSessions(userId: string) {
-    return this.db.authSession.updateMany({
-      where: { userId, revokedAt: null },
-      data: { revokedAt: new Date() },
-    })
-  }
+    updateSession(
+        sessionId: string,
+        data: Prisma.AuthSessionUpdateArgs['data'],
+    ) {
+        return this.db.authSession.update({
+            where: { id: sessionId },
+            data,
+        });
+    }
 
-  listActiveSessions(userId: string) {
-    return this.db.authSession.findMany({
-      where: {
-        userId,
-        revokedAt: null,
-        expiresAt: { gt: new Date() },
-      },
-      orderBy: { createdAt: 'desc' },
-    })
-  }
+    revokeSession(sessionId: string) {
+        return this.db.authSession.updateMany({
+            where: { id: sessionId, revokedAt: null },
+            data: { revokedAt: new Date() },
+        });
+    }
 
-  findPasswordResetToken(tokenHash: string) {
-    return this.db.passwordResetToken.findUnique({
-      where: { tokenHash },
-      include: { user: true },
-    })
-  }
+    revokeUserSessions(userId: string) {
+        return this.db.authSession.updateMany({
+            where: { userId, revokedAt: null },
+            data: { revokedAt: new Date() },
+        });
+    }
 
-  createPasswordResetToken(data: Prisma.PasswordResetTokenCreateArgs['data']) {
-    return this.db.passwordResetToken.create({ data })
-  }
+    listActiveSessions(userId: string) {
+        return this.db.authSession.findMany({
+            where: {
+                userId,
+                revokedAt: null,
+                expiresAt: { gt: new Date() },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+    }
 
-  consumePasswordResetToken(id: string) {
-    return this.db.passwordResetToken.update({
-      where: { id },
-      data: { consumedAt: new Date() },
-    })
-  }
+    findPasswordResetToken(tokenHash: string) {
+        return this.db.passwordResetToken.findUnique({
+            where: { tokenHash },
+            include: { user: true },
+        });
+    }
 
-  consumeUserPasswordResetTokens(userId: string) {
-    return this.db.passwordResetToken.updateMany({
-      where: { userId, consumedAt: null },
-      data: { consumedAt: new Date() },
-    })
-  }
+    createPasswordResetToken(
+        data: Prisma.PasswordResetTokenCreateArgs['data'],
+    ) {
+        return this.db.passwordResetToken.create({ data });
+    }
+
+    consumePasswordResetToken(id: string) {
+        return this.db.passwordResetToken.update({
+            where: { id },
+            data: { consumedAt: new Date() },
+        });
+    }
+
+    consumeUserPasswordResetTokens(userId: string) {
+        return this.db.passwordResetToken.updateMany({
+            where: { userId, consumedAt: null },
+            data: { consumedAt: new Date() },
+        });
+    }
 }

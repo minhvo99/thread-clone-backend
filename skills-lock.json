@@ -1,35 +1,35 @@
 {
-  "version": 1,
-  "skills": {
-    "database-migrations": {
-      "source": "affaan-m/ECC",
-      "sourceType": "github",
-      "skillPath": "skills/database-migrations/SKILL.md",
-      "computedHash": "71053b570ad648117f19b3456836a819a6b85f868628899ee28246d8a956b06f"
-    },
-    "nodejs-backend-patterns": {
-      "source": "wshobson/agents",
-      "sourceType": "github",
-      "skillPath": "plugins/javascript-typescript/skills/nodejs-backend-patterns/SKILL.md",
-      "computedHash": "b63b54d09c77cec0e84cdd42424c12909785f14bdb286c835c45420b885ff1f3"
-    },
-    "postgres-patterns": {
-      "source": "affaan-m/ECC",
-      "sourceType": "github",
-      "skillPath": "skills/postgres-patterns/SKILL.md",
-      "computedHash": "ccf7be21533b50c43a821f8f6d415938d5e33a768029efd2c15ab14d670bf119"
-    },
-    "supabase": {
-      "source": "supabase/agent-skills",
-      "sourceType": "github",
-      "skillPath": "skills/supabase/SKILL.md",
-      "computedHash": "d414d598b9428b3e851c4ce61898649906b19e55aa7415bb42a286bd9ca2ab32"
-    },
-    "supabase-postgres-best-practices": {
-      "source": "supabase/agent-skills",
-      "sourceType": "github",
-      "skillPath": "skills/supabase-postgres-best-practices/SKILL.md",
-      "computedHash": "0d2c4857a7d6fdcd3fbc46e458fa4c497f029cab89a01548b3defce203003932"
+    "version": 1,
+    "skills": {
+        "database-migrations": {
+            "source": "affaan-m/ECC",
+            "sourceType": "github",
+            "skillPath": "skills/database-migrations/SKILL.md",
+            "computedHash": "71053b570ad648117f19b3456836a819a6b85f868628899ee28246d8a956b06f"
+        },
+        "nodejs-backend-patterns": {
+            "source": "wshobson/agents",
+            "sourceType": "github",
+            "skillPath": "plugins/javascript-typescript/skills/nodejs-backend-patterns/SKILL.md",
+            "computedHash": "b63b54d09c77cec0e84cdd42424c12909785f14bdb286c835c45420b885ff1f3"
+        },
+        "postgres-patterns": {
+            "source": "affaan-m/ECC",
+            "sourceType": "github",
+            "skillPath": "skills/postgres-patterns/SKILL.md",
+            "computedHash": "ccf7be21533b50c43a821f8f6d415938d5e33a768029efd2c15ab14d670bf119"
+        },
+        "supabase": {
+            "source": "supabase/agent-skills",
+            "sourceType": "github",
+            "skillPath": "skills/supabase/SKILL.md",
+            "computedHash": "d414d598b9428b3e851c4ce61898649906b19e55aa7415bb42a286bd9ca2ab32"
+        },
+        "supabase-postgres-best-practices": {
+            "source": "supabase/agent-skills",
+            "sourceType": "github",
+            "skillPath": "skills/supabase-postgres-best-practices/SKILL.md",
+            "computedHash": "0d2c4857a7d6fdcd3fbc46e458fa4c497f029cab89a01548b3defce203003932"
+        }
     }
-  }
 }
