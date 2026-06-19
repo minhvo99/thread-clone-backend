@@ -7,7 +7,7 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
+  provider = "postgresql"
 }
 
 enum UserRole {
@@ -15,41 +15,103 @@ enum UserRole {
   ADMIN
 }
 
+enum ConnectionStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  BLOCKED
+}
+
+enum GroupVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum GroupMemberStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+  BANNED
+  LEFT
+}
+
+enum ReactionTargetType {
+  POST
+  COMMENT
+}
+
+enum ReactionType {
+  LIKE
+  LOVE
+  HAHA
+  SAD
+  ANGRY
+}
+
+enum StorageProvider {
+  SUPABASE
+}
+
+enum ChatMemberRole {
+  OWNER
+  MEMBER
+}
+
+enum ChatMessageType {
+  TEXT
+  MEDIA
+  SYSTEM
+}
+
 model User {
-  id          String    @id @default(cuid())
-  email       String    @unique
-  username    String    @unique
-  passwordHash String
-  role        UserRole  @default(USER)
-  isActive    Boolean   @default(true)
-  displayName String?
-  bio         String?
-  avatarUrl   String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  posts       Post[]
-  comments    Comment[]
-  likes       Like[]
-  following   Follow[]  @relation("UserFollowing")
-  followers   Follow[]  @relation("UserFollowers")
-  authSessions AuthSession[]
+  id                  String                 @id @default(cuid())
+  email               String                 @unique
+  username            String                 @unique
+  passwordHash        String
+  role                UserRole               @default(USER)
+  isActive            Boolean                @default(true)
+  displayName         String?
+  bio                 String?
+  avatarUrl           String?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  posts               Post[]
+  comments            Comment[]
+  likes               Like[]
+  reactions           Reaction[]
+  media               Media[]                @relation("MediaOwner")
+  following           Follow[]               @relation("UserFollowing")
+  followers           Follow[]               @relation("UserFollowers")
+  sentConnections     Connection[]           @relation("ConnectionRequester")
+  receivedConnections Connection[]           @relation("ConnectionAddressee")
+  authSessions        AuthSession[]
   passwordResetTokens PasswordResetToken[]
+  ownedGroups         CommunityGroup[]       @relation("CommunityGroupOwner")
+  groupMemberships    CommunityGroupMember[]
+  ownedChatGroups     ChatGroup[]            @relation("ChatGroupOwner")
+  chatMemberships     ChatGroupMember[]
+  chatInvitesCreated  ChatGroupInvite[]      @relation("ChatInviteCreator")
+  chatInvitesReceived ChatGroupInvite[]      @relation("ChatInviteInvitee")
+  chatMessages        ChatMessage[]
+  chatMessageReads    ChatMessageRead[]
+  notifications       Notification[]         @relation("NotificationRecipient")
+  notificationActions Notification[]         @relation("NotificationActor")
 
   @@map("users")
 }
 
 model AuthSession {
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
   userId           String
-  refreshTokenHash String   @unique
+  refreshTokenHash String    @unique
   userAgent        String?
   ipAddress        String?
   expiresAt        DateTime
   lastUsedAt       DateTime?
   revokedAt        DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, revokedAt, expiresAt])
   @@index([expiresAt])
@@ -57,32 +119,158 @@ model AuthSession {
 }
 
 model PasswordResetToken {
-  id        String   @id @default(cuid())
-  userId    String
-  tokenHash String   @unique
-  expiresAt DateTime
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
   consumedAt DateTime?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
   @@index([expiresAt])
   @@map("password_reset_tokens")
 }
 
+model GlobalTopic {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  posts       Post[]
+
+  @@map("global_topics")
+}
+
+model CommunityGroup {
+  id          String                 @id @default(cuid())
+  ownerId     String
+  name        String
+  slug        String                 @unique
+  description String?
+  avatarUrl   String?
+  coverUrl    String?
+  visibility  GroupVisibility
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  owner       User                   @relation("CommunityGroupOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members     CommunityGroupMember[]
+  topics      CommunityTopic[]
+  roles       GroupRole[]
+  posts       Post[]
+
+  @@index([ownerId, createdAt(sort: Desc)])
+  @@map("community_groups")
+}
+
+model CommunityGroupMember {
+  id        String            @id @default(cuid())
+  groupId   String
+  userId    String
+  status    GroupMemberStatus @default(PENDING)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  group     CommunityGroup    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roles     GroupMemberRole[]
+
+  @@unique([groupId, userId])
+  @@index([userId, status])
+  @@index([groupId, status])
+  @@map("community_group_members")
+}
+
+model CommunityTopic {
+  id          String         @id @default(cuid())
+  groupId     String
+  name        String
+  slug        String
+  description String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  group       CommunityGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  posts       Post[]
+
+  @@unique([groupId, slug])
+  @@index([groupId, createdAt(sort: Desc)])
+  @@map("community_topics")
+}
+
+model GroupRole {
+  id          String                @id @default(cuid())
+  groupId     String
+  name        String
+  isSystem    Boolean               @default(false)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  group       CommunityGroup        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  permissions GroupRolePermission[]
+  members     GroupMemberRole[]
+
+  @@unique([groupId, name])
+  @@index([groupId])
+  @@map("group_roles")
+}
+
+model GroupPermission {
+  id          String                @id @default(cuid())
+  key         String                @unique
+  description String?
+  createdAt   DateTime              @default(now())
+  roles       GroupRolePermission[]
+
+  @@map("group_permissions")
+}
+
+model GroupRolePermission {
+  id           String          @id @default(cuid())
+  roleId       String
+  permissionId String
+  role         GroupRole       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   GroupPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([permissionId])
+  @@map("group_role_permissions")
+}
+
+model GroupMemberRole {
+  id       String               @id @default(cuid())
+  memberId String
+  roleId   String
+  member   CommunityGroupMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  role     GroupRole            @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, roleId])
+  @@index([roleId])
+  @@map("group_member_roles")
+}
+
 model Post {
-  id          String    @id @default(cuid())
-  authorId    String
-  content     String
-  imageUrl    String?
-  publishedAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  comments    Comment[]
-  likes       Like[]
+  id               String          @id @default(cuid())
+  authorId         String
+  content          String
+  imageUrl         String?
+  publishedAt      DateTime?
+  communityGroupId String?
+  globalTopicId    String?
+  groupTopicId     String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  author           User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  communityGroup   CommunityGroup? @relation(fields: [communityGroupId], references: [id], onDelete: Cascade)
+  globalTopic      GlobalTopic?    @relation(fields: [globalTopicId], references: [id], onDelete: SetNull)
+  groupTopic       CommunityTopic? @relation(fields: [groupTopicId], references: [id], onDelete: SetNull)
+  comments         Comment[]
+  likes            Like[]
+  media            Media[]
 
   @@index([authorId, createdAt(sort: Desc)])
+  @@index([communityGroupId, createdAt(sort: Desc)])
+  @@index([globalTopicId, createdAt(sort: Desc)])
+  @@index([groupTopicId, createdAt(sort: Desc)])
   @@map("posts")
 }
 
@@ -95,6 +283,7 @@ model Comment {
   updatedAt DateTime @updatedAt
   post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  media     Media[]
 
   @@index([postId, createdAt(sort: Desc)])
   @@map("comments")
@@ -113,6 +302,49 @@ model Like {
   @@map("likes")
 }
 
+model Reaction {
+  id         String             @id @default(cuid())
+  userId     String
+  targetType ReactionTargetType
+  targetId   String
+  type       ReactionType
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetType, targetId])
+  @@index([targetType, targetId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("reactions")
+}
+
+model Media {
+  id              String          @id @default(cuid())
+  ownerId         String
+  postId          String?
+  commentId       String?
+  messageId       String?
+  storageProvider StorageProvider @default(SUPABASE)
+  bucket          String
+  storagePath     String
+  mimeType        String
+  sizeBytes       Int
+  width           Int?
+  height          Int?
+  durationMs      Int?
+  createdAt       DateTime        @default(now())
+  owner           User            @relation("MediaOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  post            Post?           @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment         Comment?        @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  message         ChatMessage?    @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, createdAt(sort: Desc)])
+  @@index([postId])
+  @@index([commentId])
+  @@index([messageId])
+  @@map("media")
+}
+
 model Follow {
   id          String   @id @default(cuid())
   followerId  String
@@ -124,4 +356,123 @@ model Follow {
   @@unique([followerId, followingId])
   @@index([followingId, createdAt(sort: Desc)])
   @@map("follows")
+}
+
+model Connection {
+  id          String           @id @default(cuid())
+  requesterId String
+  addresseeId String
+  status      ConnectionStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  requester   User             @relation("ConnectionRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee   User             @relation("ConnectionAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+  @@index([addresseeId, status, createdAt(sort: Desc)])
+  @@index([requesterId, status, createdAt(sort: Desc)])
+  @@map("connections")
+}
+
+model ChatGroup {
+  id        String            @id @default(cuid())
+  ownerId   String
+  name      String
+  avatarUrl String?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  owner     User              @relation("ChatGroupOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members   ChatGroupMember[]
+  invites   ChatGroupInvite[]
+  messages  ChatMessage[]
+  reads     ChatMessageRead[]
+
+  @@index([ownerId, createdAt(sort: Desc)])
+  @@map("chat_groups")
+}
+
+model ChatGroupMember {
+  id          String         @id @default(cuid())
+  chatGroupId String
+  userId      String
+  role        ChatMemberRole @default(MEMBER)
+  joinedAt    DateTime       @default(now())
+  leftAt      DateTime?
+  chatGroup   ChatGroup      @relation(fields: [chatGroupId], references: [id], onDelete: Cascade)
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([chatGroupId, userId])
+  @@index([userId, joinedAt(sort: Desc)])
+  @@map("chat_group_members")
+}
+
+model ChatGroupInvite {
+  id          String    @id @default(cuid())
+  chatGroupId String
+  createdById String
+  inviteeId   String?
+  tokenHash   String?   @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  chatGroup   ChatGroup @relation(fields: [chatGroupId], references: [id], onDelete: Cascade)
+  createdBy   User      @relation("ChatInviteCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  invitee     User?     @relation("ChatInviteInvitee", fields: [inviteeId], references: [id], onDelete: Cascade)
+
+  @@index([chatGroupId, revokedAt, expiresAt])
+  @@index([inviteeId, revokedAt, expiresAt])
+  @@map("chat_group_invites")
+}
+
+model ChatMessage {
+  id          String            @id @default(cuid())
+  chatGroupId String
+  senderId    String
+  content     String?
+  messageType ChatMessageType   @default(TEXT)
+  deletedAt   DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  chatGroup   ChatGroup         @relation(fields: [chatGroupId], references: [id], onDelete: Cascade)
+  sender      User              @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  media       Media[]
+  reads       ChatMessageRead[]
+
+  @@index([chatGroupId, createdAt(sort: Desc)])
+  @@index([senderId, createdAt(sort: Desc)])
+  @@map("chat_messages")
+}
+
+model ChatMessageRead {
+  id                String      @id @default(cuid())
+  chatGroupId       String
+  userId            String
+  lastReadMessageId String
+  readAt            DateTime    @default(now())
+  chatGroup         ChatGroup   @relation(fields: [chatGroupId], references: [id], onDelete: Cascade)
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadMessage   ChatMessage @relation(fields: [lastReadMessageId], references: [id], onDelete: Cascade)
+
+  @@unique([chatGroupId, userId])
+  @@index([lastReadMessageId])
+  @@map("chat_message_reads")
+}
+
+model Notification {
+  id          String    @id @default(cuid())
+  recipientId String
+  actorId     String?
+  type        String
+  entityType  String
+  entityId    String
+  data        Json
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+  recipient   User      @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  actor       User?     @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([recipientId, readAt, createdAt(sort: Desc)])
+  @@index([actorId, createdAt(sort: Desc)])
+  @@map("notifications")
 }

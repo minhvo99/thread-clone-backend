@@ -48,7 +48,7 @@ Responsibilities:
 - Supabase PostgreSQL stores relational data
 - Supabase Storage stores media files
 
-Supabase Auth is not used in the MVP because the project already has JWT/session-based authentication. Supabase Realtime can be added later, but the MVP design must work with polling and standard HTTP APIs.
+Supabase Auth is not used in the MVP because the project already has JWT/session-based authentication. Realtime delivery for chat messages, notifications, comments, and reactions is part of the MVP and uses the Node.js backend with the `ws` package. Supabase Realtime is not used for the MVP realtime layer; Supabase remains the managed PostgreSQL and Storage provider.
 
 ## Core database model
 
@@ -619,7 +619,11 @@ POST /chat-groups/:id/messages
   -> create ChatMessage
   -> attach Media records if provided
   -> create notifications for other members if needed
+  -> publish `chat.message.created` to `chat_group:{chatGroupId}` over WebSocket
+  -> publish `notification.created` to `user:{recipientId}` over WebSocket for affected recipients
 ```
+
+The HTTP API remains the source of truth for message creation and persistence. WebSocket delivery is a realtime fan-out after the database write succeeds. If WebSocket delivery fails, clients recover by reading message history and notifications over HTTP.
 
 ### Read chat messages
 
@@ -639,16 +643,58 @@ PATCH /chat-groups/:id/read
 
 ### Notifications
 
-Notifications are created in service layer, not controllers.
+Notifications are created in the service layer, not controllers.
 
-MVP delivery can use polling:
+MVP notification persistence and recovery use HTTP:
 
 ```text
 GET /notifications?cursor=...
 PATCH /notifications/:id/read
 ```
 
-Realtime can be added later by emitting after notification creation.
+MVP realtime notification delivery uses WebSocket with the `ws` package. After a notification row is created successfully, the service publishes `notification.created` to `user:{recipientId}`. WebSocket delivery is best-effort; the database row is authoritative and clients can recover missed events by polling `GET /notifications?cursor=...`.
+
+## Realtime WebSocket layer
+
+The MVP realtime layer uses the `ws` package in the Node.js 22 backend. The Express API remains responsible for validation, authorization, persistence, and response formatting. WebSocket connections are used for server-to-client delivery of events after successful database writes.
+
+Connection flow:
+
+```text
+Client opens WebSocket /realtime with auth token
+  -> server verifies the same JWT/session identity used by HTTP auth middleware
+  -> server attaches userId to the socket
+  -> client subscribes to allowed channels
+  -> server publishes events to subscribed sockets after service-layer writes commit
+```
+
+Initial channel names:
+
+- `user:{userId}` for notifications and user-scoped events
+- `chat_group:{chatGroupId}` for chat group messages
+- `post:{postId}` for post comments and reactions
+- `community_group:{groupId}` for group-level events if later needed
+
+Initial event types:
+
+- `chat.message.created`
+- `notification.created`
+- `post.comment.created`
+- `post.reaction.upserted`
+
+Subscription rules:
+
+- a user can subscribe to `user:{userId}` only for their own user id
+- a user can subscribe to `chat_group:{chatGroupId}` only when they are an active chat group member
+- a user can subscribe to `post:{postId}` only if they can read the post; public group posts are readable by non-members, private group posts require active membership
+- invalid subscription requests are rejected without closing the socket unless the token is invalid
+
+Write path rules:
+
+- HTTP handlers remain the command path for comments, reactions, notifications, and chat messages
+- service methods publish realtime events only after the database write succeeds
+- failed WebSocket delivery must not roll back the database write
+- event payloads should include stable IDs and minimal metadata, not full private message bodies unless the recipient is authorized for that channel
 
 ## Media storage
 
